@@ -1,12 +1,11 @@
 package edu.coursera.distributed;
 
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.File;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * A basic and very limited implementation of a file server that responds to GET
@@ -34,49 +33,41 @@ public final class FileServer {
          * Enter a spin loop for handling client requests to the provided
          * ServerSocket object.
          */
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(ncores);
+
         while (true) {
 
-            // TODO Delete this once you start working on your solution.
-            throw new UnsupportedOperationException();
+            Socket s = socket.accept();
 
-            // TODO 1) Use socket.accept to get a Socket object
+            executor.submit(() -> {
+                try {
+                    BufferedReader buffered = new BufferedReader(new InputStreamReader(s.getInputStream()));
+                    String[] line = buffered.readLine().split(" ");
+                    if (!line[0].equals("GET")) {
+                        s.close();
+                    }
+                    String contents = fs.readFile(new PCDPPath(line[1]));
 
-            /*
-             * TODO 2) Now that we have a new Socket object, handle the parsing
-             * of the HTTP message on that socket and returning of the requested
-             * file in a separate thread. You are free to choose how that new
-             * thread is created. Common approaches would include spawning a new
-             * Java Thread or using a Java Thread Pool. The steps to complete
-             * the handling of HTTP messages are the same as in MiniProject 2,
-             * but are repeated below for convenience:
-             *
-             *   a) Using Socket.getInputStream(), parse the received HTTP
-             *      packet. In particular, we are interested in confirming this
-             *      message is a GET and parsing out the path to the file we are
-             *      GETing. Recall that for GET HTTP packets, the first line of
-             *      the received packet will look something like:
-             *
-             *          GET /path/to/file HTTP/1.1
-             *   b) Using the parsed path to the target file, construct an
-             *      HTTP reply and write it to Socket.getOutputStream(). If the
-             *      file exists, the HTTP reply should be formatted as follows:
-             *
-             *        HTTP/1.0 200 OK\r\n
-             *        Server: FileServer\r\n
-             *        \r\n
-             *        FILE CONTENTS HERE\r\n
-             *
-             *      If the specified file does not exist, you should return a
-             *      reply with an error code 404 Not Found. This reply should be
-             *      formatted as:
-             *
-             *        HTTP/1.0 404 Not Found\r\n
-             *        Server: FileServer\r\n
-             *        \r\n
-             *
-             * If you wish to do so, you are free to re-use code from
-             * MiniProject 2 to help with completing this MiniProject.
-             */
+                    PrintWriter printer = new PrintWriter(s.getOutputStream());
+                    String result;
+                    if (contents == null) {
+                        result = "HTTP/1.0 404 Not Found\r\n" +
+                                "Server: FileServer\r\n" +
+                                "\r\n";
+                    }
+                    else {
+                        result = "HTTP/1.0 200 OK\r\n" +
+                                "Server: FileServer\r\n" +
+                                "\r\n" +
+                                contents + "\r\n" +
+                                "\r\n";
+                    }
+                    printer.write(result);
+                    printer.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
         }
     }
 }
